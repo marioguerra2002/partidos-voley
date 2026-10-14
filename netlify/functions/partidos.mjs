@@ -5,6 +5,7 @@ const API = "https://api.leverade.com";
 
 const GROUPS = [
   { id: "3711352", key: "masc", nombre: "Sénior Masculina · Grupo Tenerife" },
+  { id: "3711351", key: "masc-gc", nombre: "Sénior Masculina · Grupo Gran Canaria" },
   { id: "3711343", key: "fem", nombre: "Sénior Femenina · Grupo Oro" },
 ];
 
