@@ -44,7 +44,7 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;margin:0}
 .me{font-size:13px;color:var(--muted);padding:6px 0 6px 8px;white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
 .me b{color:var(--ink);font-weight:600}
 .seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;margin:12px 0}
-.seg button{flex:1;padding:7px 4px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.seg button{flex:1;padding:7px 2px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
 .seg button[aria-selected=true]{background:var(--raised);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 
 main{padding:12px 16px calc(env(safe-area-inset-bottom) + 32px)}
@@ -80,6 +80,41 @@ main{padding:12px 16px calc(env(safe-area-inset-bottom) + 32px)}
 .score.win{color:var(--ink)}
 .venue{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;color:var(--muted);text-decoration:none}
 .venue span{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+
+/* Calendario */
+.cal-head{display:flex;align-items:center;gap:8px;margin:10px 0}
+.cal-title{flex:1;font-size:17px;font-weight:700;letter-spacing:-.2px}
+.cal-btn{height:34px;min-width:34px;padding:0 10px;border-radius:999px;background:var(--soft);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--ink)}
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;font-weight:500;color:var(--faint);text-align:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal-day{min-height:76px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 3px 5px;display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:0}
+.cal-day:nth-child(7n){border-right:0}
+.cal-day:nth-last-child(-n+7){border-bottom:0}
+.cal-day.out{background:var(--bg)}
+.cal-day.out .num{color:var(--faint)}
+.num{font-size:12px;font-weight:500;color:var(--muted);width:22px;height:22px;display:grid;place-items:center;border-radius:50%;margin:0 auto 1px;font-variant-numeric:tabular-nums}
+.cal-day.today .num{background:var(--accent);color:var(--surface);font-weight:700}
+.ev{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;padding:4px 2px 3px;border-radius:7px;
+  background:var(--accent-soft);color:var(--accent);font-size:10.5px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.ev.done{background:var(--soft);color:var(--muted)}
+.ev.cancel{background:var(--soft);color:var(--faint);text-decoration:line-through}
+.ev .crests{display:flex;justify-content:center}
+.ev .crests .crest{border-color:var(--surface)}
+.ev .crests .crest+.crest{margin-left:-5px}
+.ev-more{font-size:10px;color:var(--muted);text-align:center}
+.cal-legend{font-size:12px;color:var(--faint);text-align:center;margin-top:10px}
+
+/* Ficha del partido */
+dialog.sheet{width:100%;max-width:600px;margin:auto auto 0;border-radius:20px 20px 0 0;border-bottom:0;
+  padding:8px 16px calc(env(safe-area-inset-bottom) + 18px);max-height:88vh;overflow:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.4}}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheet-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.sheet-head .t{flex:1}
+.sheet-head .d{font-size:17px;font-weight:700;letter-spacing:-.2px}
+.sheet-head .g{font-size:12.5px;color:var(--muted);margin-top:2px}
+.sheet .card{margin:0}
 
 /* Asistencia */
 .att{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
@@ -139,6 +174,7 @@ dialog .row button{flex:1;padding:11px;border-radius:10px;font-weight:600}
     </div>
     <nav class="seg" role="tablist">
       <button role="tab" data-tab="proximos" aria-selected="true">Próximos</button>
+      <button role="tab" data-tab="calendario" aria-selected="false">Calendario</button>
       <button role="tab" data-tab="resultados" aria-selected="false">Resultados</button>
       <button role="tab" data-tab="clasificacion" aria-selected="false">Clasificación</button>
     </nav>
@@ -163,6 +199,8 @@ dialog .row button{flex:1;padding:11px;border-radius:10px;font-weight:600}
     </div>
   </form>
 </dialog>
+
+<dialog class="sheet" id="det-dlg" aria-label="Ficha del partido"><div id="det-body"></div></dialog>
 
 <script>
 // Equipos que seguimos. "clave" se busca dentro del nombre oficial de la federación.
@@ -304,6 +342,103 @@ function vistaResultados() {
   return `<div style="height:10px"></div>` + lista.map((p) => tarjeta(p, { conAsistencia: false })).join("");
 }
 
+let mesCal = null; // { y, m } con m de 0 a 11
+let detalleId = null;
+
+function mesInicial() {
+  const pend = partidosVisibles().filter((p) => p.fecha && !p.finalizado && new Date(p.fecha) >= Date.now() - 864e5)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
+  const ref = pend ? new Date(pend.fecha) : new Date();
+  const [d, m, y] = diaClave(ref.toISOString()).split("/").map(Number);
+  return { y, m: m - 1 };
+}
+
+function vistaCalendario() {
+  if (!mesCal) mesCal = mesInicial();
+  const { y, m } = mesCal;
+  const mayus = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const pad = (n) => String(n).padStart(2, "0");
+  const clave = (dt) => `${pad(dt.getUTCDate())}/${pad(dt.getUTCMonth() + 1)}/${dt.getUTCFullYear()}`;
+  const hoy = diaClave(new Date().toISOString());
+  const [hd, hm, hy] = hoy.split("/").map(Number);
+  const esMesActual = hy === y && hm - 1 === m;
+
+  const porDia = {};
+  for (const p of partidosVisibles()) {
+    if (!p.fecha) continue;
+    (porDia[diaClave(p.fecha)] ||= []).push(p);
+  }
+  Object.values(porDia).forEach((l) => l.sort((a, b) => a.fecha.localeCompare(b.fecha)));
+
+  const offset = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7;
+  const diasMes = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const celdas = Math.ceil((offset + diasMes) / 7) * 7;
+  let grid = "";
+  for (let i = 0; i < celdas; i++) {
+    const dt = new Date(Date.UTC(y, m, 1 - offset + i));
+    const k = clave(dt);
+    const fuera = dt.getUTCMonth() !== m;
+    const lista = porDia[k] || [];
+    const evs = lista.slice(0, 3).map((p) => {
+      const mios = [p.local, p.visitante].filter((e) => seguidoDe(e, p.grupo));
+      const crests = mios.map((e) => escudo(e, 18)).join("");
+      const cls = p.cancelado ? "cancel" : p.finalizado ? "done" : "";
+      const txt = p.finalizado && p.resultado ? `${p.resultado.local}-${p.resultado.visitante}` : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
+      const nombres = `${p.local?.nombre || ""} contra ${p.visitante?.nombre || ""}`;
+      return `<button class="ev ${cls}" data-det="${p.id}" aria-label="${esc(nombres)}, ${esc(txt)}"><span class="crests">${crests}</span>${txt}</button>`;
+    }).join("");
+    const mas = lista.length > 3 ? `<span class="ev-more">+${lista.length - 3}</span>` : "";
+    grid += `<div class="cal-day ${fuera ? "out" : ""} ${k === hoy ? "today" : ""}"><span class="num">${dt.getUTCDate()}</span>${evs}${mas}</div>`;
+  }
+  const titulo = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)));
+  return `<div class="cal-head">
+      <span class="cal-title">${mayus(titulo)}</span>
+      ${esMesActual ? "" : `<button class="cal-btn" data-cal="hoy">Hoy</button>`}
+      <button class="cal-btn" data-cal="-1" aria-label="Mes anterior"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="cal-btn" data-cal="1" aria-label="Mes siguiente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <div class="cal">
+      <div class="cal-dow"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="cal-grid">${grid}</div>
+    </div>
+    <p class="cal-legend">Pulsa un partido para ver su ficha</p>`;
+}
+
+function pintarDetalle() {
+  const p = todosPartidos().find((x) => x.id === detalleId);
+  const body = $("#det-body");
+  if (!p) { body.innerHTML = `<div class="grab"></div><div class="empty">Partido no encontrado.</div>`; return; }
+  const g = datos.grupos.find((g) => g.key === p.grupo);
+  const f = p.fecha ? fmt(p.fecha, { weekday: "long", day: "numeric", month: "long" }) : "Fecha por confirmar";
+  const dia = f.charAt(0).toUpperCase() + f.slice(1);
+  body.innerHTML = `<div class="grab"></div>
+    <div class="sheet-head"><div class="t"><div class="d">${dia}</div><div class="g">${esc(g?.nombre || "")}</div></div>
+      <button class="cal-btn" data-cerrar="1">Cerrar</button></div>
+    ${tarjeta(p)}`;
+}
+
+function abrirDetalle(id) {
+  detalleId = id;
+  pintarDetalle();
+  const dlg = $("#det-dlg");
+  if (!dlg.open) { dlg.showModal(); history.pushState({ detalle: id }, ""); }
+}
+function cerrarDetalle() {
+  if (history.state?.detalle) history.back();
+  else { $("#det-dlg").close(); detalleId = null; }
+}
+window.addEventListener("popstate", () => {
+  const dlg = $("#det-dlg");
+  if (dlg.open) { dlg.close(); detalleId = null; }
+});
+$("#det-dlg").addEventListener("cancel", (e) => { e.preventDefault(); cerrarDetalle(); });
+// Tocar fuera de la ficha la cierra
+$("#det-dlg").addEventListener("click", (e) => {
+  if (e.target.id !== "det-dlg") return;
+  const r = e.target.getBoundingClientRect();
+  if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) cerrarDetalle();
+});
+
 function clasificacion(grupo) {
   const tabla = new Map(grupo.equipos.map((e) => [e.id, { eq: e, pj: 0, pg: 0, pp: 0, sf: 0, sc: 0, pts: 0 }]));
   for (const p of grupo.partidos) {
@@ -347,9 +482,11 @@ function pintar() {
   pintarFiltros();
   $("#who-btn").innerHTML = miNombre ? `Soy <b>${esc(miNombre)}</b>` : "Poner mi nombre";
   if (!datos) return;
-  const v = tab === "proximos" ? vistaProximos() : tab === "resultados" ? vistaResultados() : vistaClasificacion();
+  const v = tab === "proximos" ? vistaProximos() : tab === "calendario" ? vistaCalendario()
+    : tab === "resultados" ? vistaResultados() : vistaClasificacion();
   const aviso = datos.origen === "copia" ? `<div class="notice">La federación no responde ahora mismo; se muestra la última copia guardada.</div>` : "";
   $("#view").innerHTML = aviso + v;
+  if (detalleId && $("#det-dlg").open) pintarDetalle();
   if (datos.actualizado) $("#sub").textContent = "Actualizado " + fmt(datos.actualizado, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
@@ -412,6 +549,14 @@ document.addEventListener("click", async (e) => {
     tab = t.dataset.tab;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-selected", b === t));
     pintar(); window.scrollTo({ top: 0 });
+  } else if (t.dataset.cal) {
+    if (t.dataset.cal === "hoy") { const [, m, y] = diaClave(new Date().toISOString()).split("/").map(Number); mesCal = { y, m: m - 1 }; }
+    else { const d = new Date(Date.UTC(mesCal.y, mesCal.m + Number(t.dataset.cal), 1)); mesCal = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; }
+    pintar();
+  } else if (t.dataset.det) {
+    abrirDetalle(t.dataset.det);
+  } else if (t.dataset.cerrar) {
+    cerrarDetalle();
   } else if (t.dataset.f) {
     activos.has(t.dataset.f) ? activos.delete(t.dataset.f) : activos.add(t.dataset.f);
     store.set("activos", [...activos]); pintar();
