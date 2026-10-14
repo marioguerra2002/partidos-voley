@@ -41,8 +41,6 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88
 .top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 h1{font-size:24px;font-weight:700;letter-spacing:-.4px;margin:0}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
-.me{font-size:13px;color:var(--muted);padding:6px 0 6px 8px;white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
-.me b{color:var(--ink);font-weight:600}
 .seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;margin:12px 0}
 .seg button{flex:1;padding:7px 2px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
 .seg button[aria-selected=true]{background:var(--raised);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -116,14 +114,6 @@ dialog.sheet{width:100%;max-width:600px;margin:auto auto 0;border-radius:20px 20
 .sheet-head .g{font-size:12.5px;color:var(--muted);margin-top:2px}
 .sheet .card{margin:0}
 
-/* Asistencia */
-.att{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
-.att-btns{display:flex;background:var(--soft);border-radius:10px;padding:3px}
-.att-btns button{flex:1;padding:7px 4px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
-.att-btns button[aria-pressed=true]{background:var(--raised);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.att-btns button[data-e=voy][aria-pressed=true]{color:var(--accent)}
-.who{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.55}
-.who b{color:var(--ink);font-weight:600}
 
 /* Clasificación */
 h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:22px 2px 8px}
@@ -170,7 +160,6 @@ dialog .row button{flex:1;padding:11px;border-radius:10px;font-weight:600}
         <h1>Partidos</h1>
         <div class="sub" id="sub">Cargando…</div>
       </div>
-      <button class="me" id="who-btn" aria-label="Cambiar mi nombre"></button>
     </div>
     <nav class="seg" role="tablist">
       <button role="tab" data-tab="proximos" aria-selected="true">Próximos</button>
@@ -188,18 +177,6 @@ dialog .row button{flex:1;padding:11px;border-radius:10px;font-weight:600}
   <p class="foot">Datos de la Federación Canaria de Voleibol · se actualizan solos</p>
 </main>
 
-<dialog id="name-dlg">
-  <form method="dialog" id="name-form">
-    <h3>¿Cómo te llamas?</h3>
-    <p>Para que el grupo sepa quién va a cada partido. Se guarda en este móvil.</p>
-    <input id="name-input" maxlength="30" autocomplete="given-name" placeholder="Tu nombre" required>
-    <div class="row">
-      <button type="button" class="secondary" id="name-cancel">Cancelar</button>
-      <button type="submit" class="primary">Guardar</button>
-    </div>
-  </form>
-</dialog>
-
 <dialog class="sheet" id="det-dlg" aria-label="Ficha del partido"><div id="det-body"></div></dialog>
 
 <script>
@@ -210,6 +187,7 @@ const SEGUIDOS = [
   { id: "cisneros",  grupo: "masc", clave: "CISNEROS",  corto: "Cisneros" },
   { id: "yejarafe",  grupo: "masc", clave: "YEJARAFE",  corto: "Yejarafe" },
   { id: "tacoronte", grupo: "fem",  clave: "TACORONTE", corto: "Tacoronte" },
+  { id: "orotava-f", grupo: "fem",  clave: "OROTAVA",   corto: "Orotava-Puerto" },
 ];
 const TZ = "Atlantic/Canary";
 
@@ -221,10 +199,16 @@ const store = {
 };
 
 let datos = store.get("datos", null);
-let asistencia = store.get("asistencia", {});
+try { localStorage.removeItem("asistencia"); localStorage.removeItem("nombre"); } catch {}
 let tab = "proximos";
 let activos = new Set(store.get("activos", SEGUIDOS.map((s) => s.id)));
-let miNombre = store.get("nombre", "");
+// Equipos añadidos después: aparecen activados para quien ya usaba la app
+{
+  const conocidos = store.get("conocidos", ["orotava", "jaleo", "cisneros", "yejarafe", "tacoronte"]);
+  SEGUIDOS.forEach((x) => { if (!conocidos.includes(x.id)) activos.add(x.id); });
+  store.set("conocidos", SEGUIDOS.map((x) => x.id));
+  store.set("activos", [...activos]);
+}
 
 const seguidoDe = (equipo, grupo) =>
   equipo ? SEGUIDOS.find((s) => s.grupo === grupo && equipo.nombre.toUpperCase().includes(s.clave)) : null;
@@ -278,23 +262,7 @@ function equipoHTML(eq, grupo, marcador, gana) {
           <div class="score ${gana ? "win" : ""}">${marcador ?? ""}</div>`;
 }
 
-function asistenciaHTML(p) {
-  const lista = asistencia[p.id] || [];
-  const mio = lista.find((x) => x.nombre === miNombre)?.estado;
-  const g = { voy: [], quizas: [], no: [] };
-  lista.forEach((x) => g[x.estado]?.push(esc(x.nombre)));
-  const linea = [];
-  if (g.voy.length) linea.push(`<b>Van ${g.voy.length}</b> · ${g.voy.join(", ")}`);
-  if (g.quizas.length) linea.push(`<b>Quizás</b> · ${g.quizas.join(", ")}`);
-  if (g.no.length) linea.push(`<b>No van</b> · ${g.no.join(", ")}`);
-  const b = (e, t) => `<button data-p="${p.id}" data-e="${e}" aria-pressed="${mio === e}">${t}</button>`;
-  return `<div class="att">
-    <div class="att-btns">${b("voy", "Voy")}${b("quizas", "Quizás")}${b("no", "No voy")}</div>
-    <div class="who">${linea.join("<br>") || "Nadie ha respondido todavía"}</div>
-  </div>`;
-}
-
-function tarjeta(p, { siguiente = false, conAsistencia = true } = {}) {
+function tarjeta(p, { siguiente = false } = {}) {
   const res = p.resultado;
   const extra = [];
   if (siguiente) extra.push(`<span class="pill accent">Siguiente</span>`);
@@ -315,7 +283,6 @@ function tarjeta(p, { siguiente = false, conAsistencia = true } = {}) {
     ${p.pabellon ? `<a class="venue" href="${mapsUrl(p.pabellon)}" target="_blank" rel="noopener">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
       <span>${esc(p.pabellon.nombre)}</span></a>` : ""}
-    ${conAsistencia && !p.finalizado && !p.cancelado ? asistenciaHTML(p) : ""}
   </article>`;
 }
 
@@ -339,7 +306,7 @@ function vistaResultados() {
     .filter((p) => p.finalizado || p.cancelado)
     .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
   if (!lista.length) return `<div class="empty">Todavía no se ha jugado ningún partido.<br>Los resultados aparecerán aquí en cuanto los publique la federación.</div>`;
-  return `<div style="height:10px"></div>` + lista.map((p) => tarjeta(p, { conAsistencia: false })).join("");
+  return `<div style="height:10px"></div>` + lista.map((p) => tarjeta(p)).join("");
 }
 
 let mesCal = null; // { y, m } con m de 0 a 11
@@ -480,7 +447,6 @@ function pintarFiltros() {
 
 function pintar() {
   pintarFiltros();
-  $("#who-btn").innerHTML = miNombre ? `Soy <b>${esc(miNombre)}</b>` : "Poner mi nombre";
   if (!datos) return;
   const v = tab === "proximos" ? vistaProximos() : tab === "calendario" ? vistaCalendario()
     : tab === "resultados" ? vistaResultados() : vistaClasificacion();
@@ -492,10 +458,9 @@ function pintar() {
 
 async function cargar() {
   try {
-    const [r1, r2] = await Promise.all([fetch("/api/partidos"), fetch("/api/asistencia")]);
+    const r1 = await fetch("/api/partidos");
     if (r1.ok) { datos = await r1.json(); store.set("datos", datos); }
     else if (!datos) throw new Error();
-    if (r2.ok) { asistencia = await r2.json(); store.set("asistencia", asistencia); }
   } catch {
     if (!datos) { $("#view").innerHTML = `<div class="empty">No se pudo cargar el calendario. Revisa la conexión y vuelve a abrir la app.</div>`; $("#sub").textContent = "Sin conexión"; return; }
     $("#sub").textContent = "Sin conexión · datos guardados";
@@ -503,46 +468,7 @@ async function cargar() {
   pintar();
 }
 
-function pedirNombre() {
-  return new Promise((resolve) => {
-    const dlg = $("#name-dlg"), input = $("#name-input");
-    input.value = miNombre;
-    const cerrar = (v) => { dlg.close(); resolve(v); };
-    $("#name-cancel").onclick = () => cerrar(null);
-    $("#name-form").onsubmit = (e) => {
-      e.preventDefault();
-      const n = input.value.replace(/\s+/g, " ").trim().slice(0, 30);
-      if (n) cerrar(n);
-    };
-    dlg.showModal();
-    setTimeout(() => input.focus(), 50);
-  });
-}
-
-const enviar = (partido, nombre, estado) => fetch("/api/asistencia", {
-  method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ partido, nombre, estado }),
-});
-
-async function marcar(partido, estado) {
-  if (!miNombre) {
-    const n = await pedirNombre();
-    if (!n) return;
-    miNombre = n; store.set("nombre", n);
-  }
-  const lista = asistencia[partido] || [];
-  const actual = lista.find((x) => x.nombre === miNombre)?.estado;
-  const nuevo = actual === estado ? null : estado; // pulsar de nuevo lo quita
-  asistencia[partido] = lista.filter((x) => x.nombre !== miNombre).concat(nuevo ? [{ nombre: miNombre, estado: nuevo }] : []);
-  pintar();
-  try {
-    const r = await enviar(partido, miNombre, nuevo);
-    if (!r.ok) throw new Error();
-    asistencia = await r.json(); store.set("asistencia", asistencia); pintar();
-  } catch { alert("No se pudo guardar. Comprueba la conexión e inténtalo otra vez."); cargar(); }
-}
-
-document.addEventListener("click", async (e) => {
+document.addEventListener("click", (e) => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.tab) {
@@ -560,21 +486,6 @@ document.addEventListener("click", async (e) => {
   } else if (t.dataset.f) {
     activos.has(t.dataset.f) ? activos.delete(t.dataset.f) : activos.add(t.dataset.f);
     store.set("activos", [...activos]); pintar();
-  } else if (t.dataset.p && t.dataset.e) {
-    marcar(t.dataset.p, t.dataset.e);
-  } else if (t.id === "who-btn") {
-    const viejo = miNombre;
-    const n = await pedirNombre();
-    if (!n || n === viejo) return;
-    miNombre = n; store.set("nombre", n);
-    if (viejo && confirm(`¿Pasar tus respuestas de "${viejo}" a "${n}"?`)) {
-      for (const [pid, l] of Object.entries(asistencia)) {
-        const r = l.find((x) => x.nombre === viejo);
-        if (r) { await enviar(pid, viejo, null); await enviar(pid, n, r.estado); }
-      }
-      await cargar();
-    }
-    pintar();
   }
 });
 

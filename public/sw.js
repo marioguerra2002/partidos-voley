@@ -1,5 +1,5 @@
 // Red primero; si no hay conexión, lo último guardado.
-const CACHE = "voley-v3";
+const CACHE = "voley-v4";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.png", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
