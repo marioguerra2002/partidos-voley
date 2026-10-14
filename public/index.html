@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Partidos Vóley</title>
+<meta name="description" content="Calendario, resultados y clasificación de nuestros equipos de voleibol">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0f11" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vóley">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+:root{
+  --bg:#f7f7f8; --surface:#ffffff; --ink:#111214; --muted:#6b6f76; --faint:#a0a4ab;
+  --line:#e7e7ea; --soft:#f0f0f2; --raised:#ffffff; --accent:#2563eb; --accent-soft:#e8effd;
+  --radius:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e0f11; --surface:#17181b; --ink:#f2f2f3; --muted:#9a9ea6; --faint:#62666d;
+    --line:#26282c; --soft:#1f2124; --raised:#34363b; --accent:#6ea0ff; --accent-soft:#1b2740;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+
+/* Cabecera */
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  -webkit-backdrop-filter:saturate(180%) blur(16px);backdrop-filter:saturate(180%) blur(16px);
+  border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 12px) 16px 0}
+.wrap{max-width:600px;margin:0 auto}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:24px;font-weight:700;letter-spacing:-.4px;margin:0}
+.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.me{font-size:13px;color:var(--muted);padding:6px 0 6px 8px;white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.me b{color:var(--ink);font-weight:600}
+.seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;margin:12px 0}
+.seg button{flex:1;padding:7px 4px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.seg button[aria-selected=true]{background:var(--raised);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+main{padding:12px 16px calc(env(safe-area-inset-bottom) + 32px)}
+
+/* Filtros */
+.filters{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:none;display:flex;align-items:center;gap:7px;padding:5px 12px 5px 5px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:500;transition:opacity .15s}
+.chip[aria-pressed=false]{opacity:.4}
+
+/* Escudos */
+.crest{position:relative;flex:none;width:var(--s,28px);height:var(--s,28px);border-radius:50%;
+  background:var(--soft);border:1px solid var(--line);overflow:hidden;display:grid;place-items:center;
+  font-size:calc(var(--s,28px) * .36);font-weight:600;color:var(--muted);letter-spacing:-.2px}
+.crest img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#fff}
+
+/* Listas */
+.day{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:22px 2px 8px}
+.day:first-child{margin-top:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:8px}
+.card.next{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:12px}
+.meta .time{color:var(--ink);font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.meta .sep{color:var(--faint)}
+.pill{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--soft);color:var(--muted)}
+.pill.accent{background:var(--accent-soft);color:var(--accent)}
+.teams{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}
+.team{display:flex;align-items:center;gap:10px;min-width:0}
+.team .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;color:var(--muted)}
+.team.mine .name{color:var(--ink);font-weight:600}
+.score{font-size:18px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;color:var(--faint)}
+.score.win{color:var(--ink)}
+.venue{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;color:var(--muted);text-decoration:none}
+.venue span{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+
+/* Asistencia */
+.att{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.att-btns{display:flex;background:var(--soft);border-radius:10px;padding:3px}
+.att-btns button{flex:1;padding:7px 4px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
+.att-btns button[aria-pressed=true]{background:var(--raised);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.att-btns button[data-e=voy][aria-pressed=true]{color:var(--accent)}
+.who{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.55}
+.who b{color:var(--ink);font-weight:600}
+
+/* Clasificación */
+h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:22px 2px 8px}
+h2:first-child{margin-top:10px}
+.table{padding:4px 12px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th{font-size:11px;color:var(--faint);font-weight:500;text-align:center;padding:8px 3px}
+td{padding:9px 3px;text-align:center;border-top:1px solid var(--line);color:var(--muted)}
+td.pos{color:var(--faint);width:22px}
+td.t{text-align:left;max-width:0;width:56%}
+td.t div{display:flex;align-items:center;gap:8px}
+td.t span.n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr.mine td{color:var(--ink)}
+tr.mine td.t{font-weight:600}
+td.pts{font-weight:600;color:var(--ink)}
+
+.empty{text-align:center;color:var(--muted);padding:48px 16px;font-size:14px}
+.notice,.install{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--muted);margin:6px 0 4px;display:flex;gap:10px;align-items:flex-start}
+.install b{color:var(--ink);font-weight:600}
+.install button{margin-left:auto;color:var(--faint);font-size:18px;line-height:1;padding:0 2px}
+.foot{font-size:12px;color:var(--faint);text-align:center;margin-top:24px}
+
+/* Diálogo */
+dialog{border:1px solid var(--line);border-radius:18px;padding:20px;background:var(--surface);color:var(--ink);width:min(92vw,360px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h3{margin:0 0 4px;font-size:17px}
+dialog p{margin:0 0 14px;color:var(--muted);font-size:14px}
+dialog input{width:100%;font:inherit;font-size:16px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);outline:none}
+dialog input:focus{border-color:var(--accent)}
+dialog .row{display:flex;gap:8px;margin-top:14px}
+dialog .row button{flex:1;padding:11px;border-radius:10px;font-weight:600}
+.primary{background:var(--ink);color:var(--bg)}
+.secondary{background:var(--soft)}
+
+.skeleton{height:118px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);margin-bottom:8px;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.5}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Partidos</h1>
+        <div class="sub" id="sub">Cargando…</div>
+      </div>
+      <button class="me" id="who-btn" aria-label="Cambiar mi nombre"></button>
+    </div>
+    <nav class="seg" role="tablist">
+      <button role="tab" data-tab="proximos" aria-selected="true">Próximos</button>
+      <button role="tab" data-tab="resultados" aria-selected="false">Resultados</button>
+      <button role="tab" data-tab="clasificacion" aria-selected="false">Clasificación</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="filters" id="filters"></div>
+  <div id="install-slot"></div>
+  <div id="view"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+  <p class="foot">Datos de la Federación Canaria de Voleibol · se actualizan solos</p>
+</main>
+
+<dialog id="name-dlg">
+  <form method="dialog" id="name-form">
+    <h3>¿Cómo te llamas?</h3>
+    <p>Para que el grupo sepa quién va a cada partido. Se guarda en este móvil.</p>
+    <input id="name-input" maxlength="30" autocomplete="given-name" placeholder="Tu nombre" required>
+    <div class="row">
+      <button type="button" class="secondary" id="name-cancel">Cancelar</button>
+      <button type="submit" class="primary">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// Equipos que seguimos. "clave" se busca dentro del nombre oficial de la federación.
+const SEGUIDOS = [
+  { id: "orotava",   grupo: "masc", clave: "OROTAVA",   corto: "Orotava" },
+  { id: "jaleo",     grupo: "masc", clave: "JALEO",     corto: "Jaleo Azahar" },
+  { id: "cisneros",  grupo: "masc", clave: "CISNEROS",  corto: "Cisneros" },
+  { id: "yejarafe",  grupo: "masc", clave: "YEJARAFE",  corto: "Yejarafe" },
+  { id: "tacoronte", grupo: "fem",  clave: "TACORONTE", corto: "Tacoronte" },
+];
+const TZ = "Atlantic/Canary";
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+let datos = store.get("datos", null);
+let asistencia = store.get("asistencia", {});
+let tab = "proximos";
+let activos = new Set(store.get("activos", SEGUIDOS.map((s) => s.id)));
+let miNombre = store.get("nombre", "");
+
+const seguidoDe = (equipo, grupo) =>
+  equipo ? SEGUIDOS.find((s) => s.grupo === grupo && equipo.nombre.toUpperCase().includes(s.clave)) : null;
+
+function equipoSeguido(s) {
+  const g = datos?.grupos?.find((g) => g.key === s.grupo);
+  return g?.equipos.find((e) => e.nombre.toUpperCase().includes(s.clave)) || null;
+}
+
+function iniciales(nombre) {
+  const stop = new Set(["CV", "CD", "VB", "DE", "LA", "EL", "DEL", "CLUB"]);
+  const pal = String(nombre || "?").toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, " ").split(/\s+/).filter((w) => w && !stop.has(w));
+  return (pal.slice(0, 2).map((w) => w[0]).join("") || "?");
+}
+
+function escudo(eq, size = 28, nombre) {
+  const n = eq?.nombre || nombre;
+  const img = eq?.escudo ? `<img src="${esc(eq.escudo)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+  return `<span class="crest" style="--s:${size}px" aria-hidden="true">${esc(iniciales(n))}${img}</span>`;
+}
+
+function todosPartidos() {
+  if (!datos?.grupos) return [];
+  return datos.grupos.flatMap((g) => g.partidos);
+}
+function partidosVisibles() {
+  return todosPartidos().filter((p) => {
+    const a = seguidoDe(p.local, p.grupo), b = seguidoDe(p.visitante, p.grupo);
+    return (a && activos.has(a.id)) || (b && activos.has(b.id));
+  });
+}
+
+const fmt = (iso, opts) => new Intl.DateTimeFormat("es-ES", { timeZone: TZ, ...opts }).format(new Date(iso));
+const diaClave = (iso) => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
+function diaTitulo(iso) {
+  const k = diaClave(iso);
+  const base = fmt(iso, { weekday: "long", day: "numeric", month: "long" });
+  if (k === diaClave(new Date().toISOString())) return "Hoy · " + base;
+  if (k === diaClave(new Date(Date.now() + 864e5).toISOString())) return "Mañana · " + base;
+  return base;
+}
+
+function mapsUrl(pab) {
+  if (pab.lat && pab.lng) return `https://www.google.com/maps/search/?api=1&query=${pab.lat},${pab.lng}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pab.nombre + (pab.direccion ? ", " + pab.direccion : "") + ", Canarias")}`;
+}
+
+function equipoHTML(eq, grupo, marcador, gana) {
+  const mine = !!seguidoDe(eq, grupo);
+  return `<div class="team ${mine ? "mine" : ""}">${escudo(eq)}<span class="name">${esc(eq?.nombre || "Por determinar")}</span></div>
+          <div class="score ${gana ? "win" : ""}">${marcador ?? ""}</div>`;
+}
+
+function asistenciaHTML(p) {
+  const lista = asistencia[p.id] || [];
+  const mio = lista.find((x) => x.nombre === miNombre)?.estado;
+  const g = { voy: [], quizas: [], no: [] };
+  lista.forEach((x) => g[x.estado]?.push(esc(x.nombre)));
+  const linea = [];
+  if (g.voy.length) linea.push(`<b>Van ${g.voy.length}</b> · ${g.voy.join(", ")}`);
+  if (g.quizas.length) linea.push(`<b>Quizás</b> · ${g.quizas.join(", ")}`);
+  if (g.no.length) linea.push(`<b>No van</b> · ${g.no.join(", ")}`);
+  const b = (e, t) => `<button data-p="${p.id}" data-e="${e}" aria-pressed="${mio === e}">${t}</button>`;
+  return `<div class="att">
+    <div class="att-btns">${b("voy", "Voy")}${b("quizas", "Quizás")}${b("no", "No voy")}</div>
+    <div class="who">${linea.join("<br>") || "Nadie ha respondido todavía"}</div>
+  </div>`;
+}
+
+function tarjeta(p, { siguiente = false, conAsistencia = true } = {}) {
+  const res = p.resultado;
+  const extra = [];
+  if (siguiente) extra.push(`<span class="pill accent">Siguiente</span>`);
+  if (p.aplazado) extra.push(`<span class="pill">Aplazado</span>`);
+  if (p.cancelado) extra.push(`<span class="pill">Cancelado</span>`);
+  if (!p.finalizado && p.fecha && new Date(p.fecha) < Date.now() - 3 * 3600e3) extra.push(`<span class="pill">Resultado pendiente</span>`);
+  const hora = p.fecha ? fmt(p.fecha, { hour: "2-digit", minute: "2-digit" }) : "Por confirmar";
+  const fecha = p.fecha && tab === "resultados" ? fmt(p.fecha, { day: "numeric", month: "short" }) + " · " : "";
+  return `<article class="card ${siguiente ? "next" : ""}">
+    <div class="meta"><span class="time">${fecha}${hora}</span>
+      <span class="sep">·</span><span>${p.grupo === "masc" ? "Masculino" : "Femenino"}</span>
+      ${p.jornada ? `<span class="sep">·</span><span>J${esc(p.jornada)}</span>` : ""}
+      ${extra.join("")}</div>
+    <div class="teams">
+      ${equipoHTML(p.local, p.grupo, res?.local, res && res.local > res.visitante)}
+      ${equipoHTML(p.visitante, p.grupo, res?.visitante, res && res.visitante > res.local)}
+    </div>
+    ${p.pabellon ? `<a class="venue" href="${mapsUrl(p.pabellon)}" target="_blank" rel="noopener">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      <span>${esc(p.pabellon.nombre)}</span></a>` : ""}
+    ${conAsistencia && !p.finalizado && !p.cancelado ? asistenciaHTML(p) : ""}
+  </article>`;
+}
+
+function vistaProximos() {
+  const lista = partidosVisibles()
+    .filter((p) => !p.finalizado && !p.cancelado)
+    .sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+  if (!lista.length) return `<div class="empty">No hay partidos pendientes para los equipos seleccionados.</div>`;
+  const sig = lista.find((p) => p.fecha && new Date(p.fecha) >= Date.now() - 2 * 3600e3);
+  let html = "", dia = null;
+  for (const p of lista) {
+    const k = p.fecha ? diaClave(p.fecha) : "sin";
+    if (k !== dia) { dia = k; html += `<div class="day">${p.fecha ? diaTitulo(p.fecha) : "Sin fecha"}</div>`; }
+    html += tarjeta(p, { siguiente: p === sig });
+  }
+  return html;
+}
+
+function vistaResultados() {
+  const lista = partidosVisibles()
+    .filter((p) => p.finalizado || p.cancelado)
+    .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  if (!lista.length) return `<div class="empty">Todavía no se ha jugado ningún partido.<br>Los resultados aparecerán aquí en cuanto los publique la federación.</div>`;
+  return `<div style="height:10px"></div>` + lista.map((p) => tarjeta(p, { conAsistencia: false })).join("");
+}
+
+function clasificacion(grupo) {
+  const tabla = new Map(grupo.equipos.map((e) => [e.id, { eq: e, pj: 0, pg: 0, pp: 0, sf: 0, sc: 0, pts: 0 }]));
+  for (const p of grupo.partidos) {
+    if (!p.finalizado || p.cancelado || !p.resultado || !p.local || !p.visitante) continue;
+    const L = tabla.get(p.local.id), V = tabla.get(p.visitante.id);
+    if (!L || !V) continue;
+    const { local: sl, visitante: sv } = p.resultado;
+    L.pj++; V.pj++; L.sf += sl; L.sc += sv; V.sf += sv; V.sc += sl;
+    const [G, P, sg, sp] = sl > sv ? [L, V, sl, sv] : [V, L, sv, sl];
+    G.pg++; P.pp++;
+    // Puntuación habitual en voleibol: 3-0 / 3-1 → 3 y 0 puntos; 3-2 → 2 y 1
+    if (sp >= 2 && sg - sp === 1) { G.pts += 2; P.pts += 1; } else { G.pts += 3; }
+  }
+  const ratio = (r) => (r.sc ? r.sf / r.sc : r.sf ? Infinity : 0);
+  return [...tabla.values()].sort((a, b) => b.pts - a.pts || b.pg - a.pg || ratio(b) - ratio(a) || a.eq.nombre.localeCompare(b.eq.nombre));
+}
+
+function vistaClasificacion() {
+  if (!datos?.grupos) return "";
+  return datos.grupos.map((g) => {
+    const filas = clasificacion(g).map((r, i) => `<tr class="${seguidoDe(r.eq, g.key) ? "mine" : ""}">
+        <td class="pos">${i + 1}</td>
+        <td class="t"><div>${escudo(r.eq, 22)}<span class="n">${esc(r.eq.nombre)}</span></div></td>
+        <td>${r.pj}</td><td>${r.pg}</td><td>${r.pp}</td><td>${r.sf}-${r.sc}</td><td class="pts">${r.pts}</td></tr>`).join("");
+    return `<h2>${esc(g.nombre)}</h2><div class="card table">
+      <table><thead><tr><th></th><th style="text-align:left">Equipo</th><th>PJ</th><th>G</th><th>P</th><th>Sets</th><th>Pts</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>`;
+  }).join("") + `<p class="foot">Calculada con los resultados publicados: 3 puntos por 3-0 o 3-1, 2 por 3-2 y 1 por perder 2-3.</p>`;
+}
+
+function pintarFiltros() {
+  const f = $("#filters");
+  f.style.display = tab === "clasificacion" ? "none" : "";
+  f.innerHTML = SEGUIDOS.map((s) => {
+    const eq = equipoSeguido(s);
+    return `<button class="chip" data-f="${s.id}" aria-pressed="${activos.has(s.id)}">${escudo(eq, 24, s.corto)}${esc(s.corto)}${s.grupo === "fem" ? " (F)" : ""}</button>`;
+  }).join("");
+}
+
+function pintar() {
+  pintarFiltros();
+  $("#who-btn").innerHTML = miNombre ? `Soy <b>${esc(miNombre)}</b>` : "Poner mi nombre";
+  if (!datos) return;
+  const v = tab === "proximos" ? vistaProximos() : tab === "resultados" ? vistaResultados() : vistaClasificacion();
+  const aviso = datos.origen === "copia" ? `<div class="notice">La federación no responde ahora mismo; se muestra la última copia guardada.</div>` : "";
+  $("#view").innerHTML = aviso + v;
+  if (datos.actualizado) $("#sub").textContent = "Actualizado " + fmt(datos.actualizado, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+async function cargar() {
+  try {
+    const [r1, r2] = await Promise.all([fetch("/api/partidos"), fetch("/api/asistencia")]);
+    if (r1.ok) { datos = await r1.json(); store.set("datos", datos); }
+    else if (!datos) throw new Error();
+    if (r2.ok) { asistencia = await r2.json(); store.set("asistencia", asistencia); }
+  } catch {
+    if (!datos) { $("#view").innerHTML = `<div class="empty">No se pudo cargar el calendario. Revisa la conexión y vuelve a abrir la app.</div>`; $("#sub").textContent = "Sin conexión"; return; }
+    $("#sub").textContent = "Sin conexión · datos guardados";
+  }
+  pintar();
+}
+
+function pedirNombre() {
+  return new Promise((resolve) => {
+    const dlg = $("#name-dlg"), input = $("#name-input");
+    input.value = miNombre;
+    const cerrar = (v) => { dlg.close(); resolve(v); };
+    $("#name-cancel").onclick = () => cerrar(null);
+    $("#name-form").onsubmit = (e) => {
+      e.preventDefault();
+      const n = input.value.replace(/\s+/g, " ").trim().slice(0, 30);
+      if (n) cerrar(n);
+    };
+    dlg.showModal();
+    setTimeout(() => input.focus(), 50);
+  });
+}
+
+const enviar = (partido, nombre, estado) => fetch("/api/asistencia", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ partido, nombre, estado }),
+});
+
+async function marcar(partido, estado) {
+  if (!miNombre) {
+    const n = await pedirNombre();
+    if (!n) return;
+    miNombre = n; store.set("nombre", n);
+  }
+  const lista = asistencia[partido] || [];
+  const actual = lista.find((x) => x.nombre === miNombre)?.estado;
+  const nuevo = actual === estado ? null : estado; // pulsar de nuevo lo quita
+  asistencia[partido] = lista.filter((x) => x.nombre !== miNombre).concat(nuevo ? [{ nombre: miNombre, estado: nuevo }] : []);
+  pintar();
+  try {
+    const r = await enviar(partido, miNombre, nuevo);
+    if (!r.ok) throw new Error();
+    asistencia = await r.json(); store.set("asistencia", asistencia); pintar();
+  } catch { alert("No se pudo guardar. Comprueba la conexión e inténtalo otra vez."); cargar(); }
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.dataset.tab) {
+    tab = t.dataset.tab;
+    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-selected", b === t));
+    pintar(); window.scrollTo({ top: 0 });
+  } else if (t.dataset.f) {
+    activos.has(t.dataset.f) ? activos.delete(t.dataset.f) : activos.add(t.dataset.f);
+    store.set("activos", [...activos]); pintar();
+  } else if (t.dataset.p && t.dataset.e) {
+    marcar(t.dataset.p, t.dataset.e);
+  } else if (t.id === "who-btn") {
+    const viejo = miNombre;
+    const n = await pedirNombre();
+    if (!n || n === viejo) return;
+    miNombre = n; store.set("nombre", n);
+    if (viejo && confirm(`¿Pasar tus respuestas de "${viejo}" a "${n}"?`)) {
+      for (const [pid, l] of Object.entries(asistencia)) {
+        const r = l.find((x) => x.nombre === viejo);
+        if (r) { await enviar(pid, viejo, null); await enviar(pid, n, r.estado); }
+      }
+      await cargar();
+    }
+    pintar();
+  }
+});
+
+// Aviso para instalarla en iPhone (en Android lo ofrece el propio navegador)
+(function avisoInstalar() {
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (standalone || !/iphone|ipad|ipod/i.test(navigator.userAgent) || store.get("avisoCerrado", false)) return;
+  $("#install-slot").innerHTML = `<div class="install"><span>Para tenerla como app: <b>Compartir</b> → <b>Añadir a pantalla de inicio</b>.</span><button aria-label="Cerrar">×</button></div>`;
+  $("#install-slot button").onclick = () => { store.set("avisoCerrado", true); $("#install-slot").innerHTML = ""; };
+})();
+
+if (datos) pintar();
+cargar();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") cargar(); });
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+</script>
+</body>
+</html>
