@@ -76,6 +76,9 @@ main{padding:12px 16px calc(env(safe-area-inset-bottom) + 32px)}
 .team.mine .name{color:var(--ink);font-weight:600}
 .score{font-size:18px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;color:var(--faint)}
 .score.win{color:var(--ink)}
+.sets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.set{font-size:12.5px;font-variant-numeric:tabular-nums;padding:3px 8px;border-radius:7px;background:var(--soft);color:var(--muted)}
+.set b{color:var(--ink);font-weight:600}
 .venue{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;color:var(--muted);text-decoration:none}
 .venue span{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 
@@ -268,35 +271,51 @@ function tarjeta(p, { siguiente = false } = {}) {
   if (siguiente) extra.push(`<span class="pill accent">Siguiente</span>`);
   if (p.aplazado) extra.push(`<span class="pill">Aplazado</span>`);
   if (p.cancelado) extra.push(`<span class="pill">Cancelado</span>`);
-  if (!p.finalizado && p.fecha && new Date(p.fecha) < Date.now() - 3 * 3600e3) extra.push(`<span class="pill">Resultado pendiente</span>`);
-  const hora = p.fecha ? fmt(p.fecha, { hour: "2-digit", minute: "2-digit" }) : "Por confirmar";
-  const fecha = p.fecha && tab === "resultados" ? fmt(p.fecha, { day: "numeric", month: "short" }) + " · " : "";
+  if (!p.finalizado && !p.aplazado && !p.cancelado && p.fecha && new Date(p.fecha) < Date.now() - 3 * 3600e3) extra.push(`<span class="pill">Resultado pendiente</span>`);
+  const sinFecha = !p.fecha || aplazadoSinFecha(p);
+  const hora = sinFecha ? "Fecha por confirmar" : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
+  const fecha = !sinFecha && tab === "resultados" ? fmt(p.fecha, { day: "numeric", month: "short" }) + " · " : "";
+  const sets = res?.sets?.length
+    ? `<div class="sets" aria-label="Parciales">${res.sets.map(([l, v]) =>
+        `<span class="set">${l > v ? `<b>${l}</b>` : l}-${v > l ? `<b>${v}</b>` : v}</span>`).join("")}</div>`
+    : "";
   return `<article class="card ${siguiente ? "next" : ""}">
     <div class="meta"><span class="time">${fecha}${hora}</span>
-      <span class="sep">·</span><span>${p.grupo === "masc" ? "Masculino" : "Femenino"}</span>
+      <span class="sep">·</span><span>${p.grupo.startsWith("masc") ? "Masculino" : "Femenino"}</span>
       ${p.jornada ? `<span class="sep">·</span><span>J${esc(p.jornada)}</span>` : ""}
       ${extra.join("")}</div>
     <div class="teams">
       ${equipoHTML(p.local, p.grupo, res?.local, res && res.local > res.visitante)}
       ${equipoHTML(p.visitante, p.grupo, res?.visitante, res && res.visitante > res.local)}
     </div>
+    ${sets}
     ${p.pabellon ? `<a class="venue" href="${mapsUrl(p.pabellon)}" target="_blank" rel="noopener">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
       <span>${esc(p.pabellon.nombre)}</span></a>` : ""}
   </article>`;
 }
 
+// Aplazado cuya fecha ya pasó: la federación aún no ha puesto la nueva
+function aplazadoSinFecha(p) {
+  return p.aplazado && !p.finalizado && (!p.fecha || new Date(p.fecha) < Date.now());
+}
+
 function vistaProximos() {
-  const lista = partidosVisibles()
-    .filter((p) => !p.finalizado && !p.cancelado)
-    .sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
-  if (!lista.length) return `<div class="empty">No hay partidos pendientes para los equipos seleccionados.</div>`;
+  const pendientes = partidosVisibles().filter((p) => !p.finalizado && !p.cancelado);
+  const sinFecha = pendientes.filter((p) => aplazadoSinFecha(p) || !p.fecha);
+  const lista = pendientes.filter((p) => !sinFecha.includes(p))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (!lista.length && !sinFecha.length) return `<div class="empty">No hay partidos pendientes para los equipos seleccionados.</div>`;
   const sig = lista.find((p) => p.fecha && new Date(p.fecha) >= Date.now() - 2 * 3600e3);
   let html = "", dia = null;
   for (const p of lista) {
     const k = p.fecha ? diaClave(p.fecha) : "sin";
     if (k !== dia) { dia = k; html += `<div class="day">${p.fecha ? diaTitulo(p.fecha) : "Sin fecha"}</div>`; }
     html += tarjeta(p, { siguiente: p === sig });
+  }
+  if (sinFecha.length) {
+    html += `<div class="day">Aplazados · nueva fecha por confirmar</div>`;
+    html += sinFecha.map((p) => tarjeta(p)).join("");
   }
   return html;
 }
@@ -349,8 +368,10 @@ function vistaCalendario() {
     const evs = lista.slice(0, 3).map((p) => {
       const mios = [p.local, p.visitante].filter((e) => seguidoDe(e, p.grupo));
       const crests = mios.map((e) => escudo(e, 18)).join("");
-      const cls = p.cancelado ? "cancel" : p.finalizado ? "done" : "";
-      const txt = p.finalizado && p.resultado ? `${p.resultado.local}-${p.resultado.visitante}` : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
+      const apl = aplazadoSinFecha(p);
+      const cls = p.cancelado || apl ? "cancel" : p.finalizado ? "done" : "";
+      const txt = p.finalizado && p.resultado ? `${p.resultado.local}-${p.resultado.visitante}`
+        : apl ? "Apl." : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
       const nombres = `${p.local?.nombre || ""} contra ${p.visitante?.nombre || ""}`;
       return `<button class="ev ${cls}" data-det="${p.id}" aria-label="${esc(nombres)}, ${esc(txt)}"><span class="crests">${crests}</span>${txt}</button>`;
     }).join("");

@@ -9,10 +9,10 @@ const GROUPS = [
   { id: "3711343", key: "fem", nombre: "Sénior Femenina · Grupo Oro" },
 ];
 
-async function fetchGroup(group) {
+async function fetchAll(group, include) {
   const data = [];
   const included = new Map();
-  let url = `${API}/matches?filter=round.group.id:${group.id}&include=round,facility,results,teams&page[size]=50`;
+  let url = `${API}/matches?filter=round.group.id:${group.id}&include=${include}&page[size]=50`;
   let guard = 0;
   while (url && guard++ < 20) {
     const res = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
@@ -22,6 +22,18 @@ async function fetchGroup(group) {
     for (const inc of json.included || []) included.set(`${inc.type}:${inc.id}`, inc);
     url = json.links?.next || null;
   }
+  return { data, included };
+}
+
+async function fetchGroup(group) {
+  // Con "results.period" llegan los parciales de cada set; si la API no lo admite, se piden sin ellos.
+  let r;
+  try {
+    r = await fetchAll(group, "round,facility,results,results.period,teams");
+  } catch {
+    r = await fetchAll(group, "round,facility,results,teams");
+  }
+  const { data, included } = r;
 
   const get = (type, id) => (id ? included.get(`${type}:${id}`) : null);
   const equipos = new Map();
@@ -43,14 +55,33 @@ async function fetchGroup(group) {
         return eq;
       };
       const sets = {};
+      const parciales = new Map(); // id del periodo -> { orden, puntos por equipo }
       for (const r of rel.results?.data || []) {
         const res = get("result", r.id);
         const tid = res?.relationships?.team?.data?.id;
-        if (tid && !res.relationships?.period?.data && res.attributes.value !== null) {
+        if (!tid || res.attributes.value === null || res.attributes.value === undefined) continue;
+        const pid = res.relationships?.period?.data?.id;
+        if (!pid) {
           sets[tid] = Number(res.attributes.value);
+        } else {
+          const per = get("period", pid);
+          const orden = Number(per?.attributes?.order ?? per?.attributes?.number ?? pid);
+          if (!parciales.has(pid)) parciales.set(pid, { orden, pid: Number(pid) || 0, p: {} });
+          parciales.get(pid).p[tid] = Number(res.attributes.value);
         }
       }
+      const listaSets = [...parciales.values()]
+        .filter((x) => homeId in x.p && awayId in x.p && x.p[homeId] + x.p[awayId] > 0)
+        .sort((a, b) => a.orden - b.orden || a.pid - b.pid)
+        .map((x) => [x.p[homeId], x.p[awayId]]);
+      // Si solo hay parciales, el marcador en sets se calcula a partir de ellos
+      if (!(homeId in sets && awayId in sets) && listaSets.length) {
+        sets[homeId] = listaSets.filter(([l, v]) => l > v).length;
+        sets[awayId] = listaSets.filter(([l, v]) => v > l).length;
+      }
       const tieneResultado = homeId in sets && awayId in sets;
+      // Coherencia: tantos parciales como sets jugados; si no cuadra, no se muestran
+      if (tieneResultado && listaSets.length !== sets[homeId] + sets[awayId]) listaSets.length = 0;
       return {
         id: m.id,
         grupo: group.key,
@@ -62,7 +93,7 @@ async function fetchGroup(group) {
         aplazado: !!a.postponed,
         local: team(homeId),
         visitante: team(awayId),
-        resultado: tieneResultado ? { local: sets[homeId], visitante: sets[awayId] } : null,
+        resultado: tieneResultado ? { local: sets[homeId], visitante: sets[awayId], sets: listaSets } : null,
         pabellon: fac
           ? {
               nombre: fac.attributes.name,
