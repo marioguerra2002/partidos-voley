@@ -25,28 +25,15 @@ async function fetchAll(group, include) {
   return { data, included };
 }
 
-// TEMPORAL: ¿algún partido terminado tiene más resultados que el marcador final?
-async function diagnostico(group, data, included, nested) {
-  const fin = data.filter((x) => x.attributes.finished);
-  const cuenta = fin.map((x) => [x.id, (x.relationships?.results?.data || []).length]);
-  const conSets = cuenta.filter(([, n]) => n > 2);
-  console.log("DIAG3", JSON.stringify({ grupo: group.key, nested, terminados: fin.length, conSets: conSets.slice(0, 5),
-    tiposIncluidos: [...new Set([...included.values()].map((x) => x.type))],
-    ejemplo: fin[fin.length - 1] }).slice(0, 3500));
-}
-
 async function fetchGroup(group) {
   // Con "results.period" llegan los parciales de cada set; si la API no lo admite, se piden sin ellos.
   let r;
   try {
     r = await fetchAll(group, "round,facility,results,results.period,teams");
-    r.nested = "ok";
-  } catch (e) {
+  } catch {
     r = await fetchAll(group, "round,facility,results,teams");
-    r.nested = String(e);
   }
   const { data, included } = r;
-  diagnostico(group, data, included, r.nested).catch((e) => console.log("DIAG error", String(e)));
 
   const get = (type, id) => (id ? included.get(`${type}:${id}`) : null);
   const equipos = new Map();
@@ -104,6 +91,8 @@ async function fetchGroup(group) {
         finalizado: !!a.finished,
         cancelado: !!a.canceled,
         aplazado: !!a.postponed,
+        // Acta oficial en PDF (incluye los parciales de cada set)
+        acta: typeof a.report === "string" && a.report.startsWith("https://") ? a.report : null,
         local: team(homeId),
         visitante: team(awayId),
         resultado: tieneResultado ? { local: sets[homeId], visitante: sets[awayId], sets: listaSets } : null,
