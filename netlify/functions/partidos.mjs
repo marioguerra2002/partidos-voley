@@ -25,29 +25,14 @@ async function fetchAll(group, include) {
   return { data, included };
 }
 
-// TEMPORAL: muestra en los registros cómo publica la federación los parciales
-let diagHecho = false;
+// TEMPORAL: ¿algún partido terminado tiene más resultados que el marcador final?
 async function diagnostico(group, data, included, nested) {
-  if (diagHecho) return;
-  const m = data.find((x) => x.attributes.finished);
-  if (!m) return;
-  diagHecho = true;
-  const res = (m.relationships?.results?.data || []).map((x) => included.get(`result:${x.id}`));
-  const periodos = [...included.values()].filter((x) => x.type === "period").slice(0, 3);
-  console.log("DIAG1", JSON.stringify({ grupo: group.key, nested, partido: m.id, nResults: res.length, results: res, periodos }).slice(0, 3500));
-  for (const url of [
-    `${API}/results?filter=parent.id:${m.id}&include=period&page[size]=30`,
-    `${API}/results?filter=parent.id:${res[0]?.id}&include=period&page[size]=30`,
-    `${API}/results?filter=team.id:${res[0]?.relationships?.team?.data?.id}&include=period,parent&page[size]=30`,
-    `${API}/matches?filter=id:${m.id}&include=results.period,results.children,periods`,
-    `${API}/periods?filter=match.id:${m.id}`,
-  ]) {
-    try {
-      const r = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
-      const t = await r.text();
-      console.log("DIAG2", r.status, url, t.slice(0, 3500));
-    } catch (e) { console.log("DIAG2 fallo", url, String(e)); }
-  }
+  const fin = data.filter((x) => x.attributes.finished);
+  const cuenta = fin.map((x) => [x.id, (x.relationships?.results?.data || []).length]);
+  const conSets = cuenta.filter(([, n]) => n > 2);
+  console.log("DIAG3", JSON.stringify({ grupo: group.key, nested, terminados: fin.length, conSets: conSets.slice(0, 5),
+    tiposIncluidos: [...new Set([...included.values()].map((x) => x.type))],
+    ejemplo: fin[fin.length - 1] }).slice(0, 3500));
 }
 
 async function fetchGroup(group) {
