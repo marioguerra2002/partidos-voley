@@ -25,6 +25,43 @@ async function fetchAll(group, include) {
   return { data, included };
 }
 
+// TEMPORAL: buscar de dónde saca la web de la federación los parciales
+let diagHecho = false;
+async function diagnostico() {
+  if (diagHecho) return;
+  diagHecho = true;
+  const mid = "145743590"; // La Palma 0-3 Jaleo (11-25, 17-25, 17-25)
+  const H = { Accept: "application/vnd.api+json" };
+  const urls = [
+    `${API}/results?filter=match[match].id:${mid}`,
+    `${API}/periods?filter=match[match].id:${mid}`,
+    `${API}/matches?filter=id:${mid}&include=periods`,
+    `${API}/matches?filter=id:${mid}&include=periods.results`,
+    `${API}/matches?filter=id:${mid}&include=faceoff,results.period`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { headers: H });
+      console.log("DIAG4", r.status, url, (await r.text()).slice(0, 2500));
+    } catch (e) { console.log("DIAG4 fallo", url, String(e)); }
+  }
+  for (const url of [
+    `https://fcanvb.es/es/tournament/1341786/match/${mid}/results`,
+    `https://fcanvb.es/es/tournament/1341786/calendar/3711352/19820016`,
+  ]) {
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "text/html" } });
+      const html = await r.text();
+      const i = html.indexOf("JALEO");
+      console.log("DIAG5", r.status, url, "len", html.length, "pos", i);
+      const trozo = html.slice(Math.max(0, i - 1500), i + 3500);
+      for (let k = 0; k < trozo.length; k += 2400) console.log("DIAG5 parte", k, trozo.slice(k, k + 2400));
+      const apis = [...new Set(html.match(/https?:\/\/[a-z0-9.-]*leverade[a-z0-9./?=&_%:-]*/gi) || [])].slice(0, 20);
+      console.log("DIAG5 urls", JSON.stringify(apis));
+    } catch (e) { console.log("DIAG5 fallo", url, String(e)); }
+  }
+}
+
 async function fetchGroup(group) {
   // Con "results.period" llegan los parciales de cada set; si la API no lo admite, se piden sin ellos.
   let r;
@@ -115,6 +152,7 @@ const cacheStore = () => {
 };
 
 export default async () => {
+  await diagnostico().catch((e) => console.log("DIAG error", String(e)));
   const store = cacheStore();
   try {
     const grupos = await Promise.all(GROUPS.map(fetchGroup));
