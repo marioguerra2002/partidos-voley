@@ -25,15 +25,40 @@ async function fetchAll(group, include) {
   return { data, included };
 }
 
+// TEMPORAL: muestra en los registros cómo publica la federación los parciales
+let diagHecho = false;
+async function diagnostico(group, data, included, nested) {
+  if (diagHecho) return;
+  const m = data.find((x) => x.attributes.finished);
+  if (!m) return;
+  diagHecho = true;
+  const res = (m.relationships?.results?.data || []).map((x) => included.get(`result:${x.id}`));
+  const periodos = [...included.values()].filter((x) => x.type === "period").slice(0, 3);
+  console.log("DIAG1", JSON.stringify({ grupo: group.key, nested, partido: m.id, nResults: res.length, results: res, periodos }).slice(0, 3500));
+  for (const url of [
+    `${API}/results?filter=match.id:${m.id}&include=period&page[size]=30`,
+    `${API}/matches/${m.id}?include=results,results.period`,
+  ]) {
+    try {
+      const r = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
+      const t = await r.text();
+      console.log("DIAG2", r.status, url, t.slice(0, 3500));
+    } catch (e) { console.log("DIAG2 fallo", url, String(e)); }
+  }
+}
+
 async function fetchGroup(group) {
   // Con "results.period" llegan los parciales de cada set; si la API no lo admite, se piden sin ellos.
   let r;
   try {
     r = await fetchAll(group, "round,facility,results,results.period,teams");
-  } catch {
+    r.nested = "ok";
+  } catch (e) {
     r = await fetchAll(group, "round,facility,results,teams");
+    r.nested = String(e);
   }
   const { data, included } = r;
+  diagnostico(group, data, included, r.nested).catch((e) => console.log("DIAG error", String(e)));
 
   const get = (type, id) => (id ? included.get(`${type}:${id}`) : null);
   const equipos = new Map();
