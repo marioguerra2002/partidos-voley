@@ -36,8 +36,11 @@ async function diagnostico(group, data, included, nested) {
   const periodos = [...included.values()].filter((x) => x.type === "period").slice(0, 3);
   console.log("DIAG1", JSON.stringify({ grupo: group.key, nested, partido: m.id, nResults: res.length, results: res, periodos }).slice(0, 3500));
   for (const url of [
-    `${API}/results?filter=match.id:${m.id}&include=period&page[size]=30`,
-    `${API}/matches/${m.id}?include=results,results.period`,
+    `${API}/results?filter=parent.id:${m.id}&include=period&page[size]=30`,
+    `${API}/results?filter=parent.id:${res[0]?.id}&include=period&page[size]=30`,
+    `${API}/results?filter=team.id:${res[0]?.relationships?.team?.data?.id}&include=period,parent&page[size]=30`,
+    `${API}/matches?filter=id:${m.id}&include=results.period,results.children,periods`,
+    `${API}/periods?filter=match.id:${m.id}`,
   ]) {
     try {
       const r = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
