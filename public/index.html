@@ -18,13 +18,13 @@
 <style>
 :root{
   --bg:#f7f7f8; --surface:#ffffff; --ink:#111214; --muted:#6b6f76; --faint:#a0a4ab;
-  --line:#e7e7ea; --soft:#f0f0f2; --raised:#ffffff; --accent:#2563eb; --accent-soft:#e8effd;
+  --line:#e7e7ea; --soft:#f0f0f2; --raised:#ffffff; --accent:#2563eb; --accent-soft:#e8effd; --live:#dc2626; --live-soft:#fde8e8;
   --radius:14px;
 }
 @media (prefers-color-scheme:dark){
   :root{
     --bg:#0e0f11; --surface:#17181b; --ink:#f2f2f3; --muted:#9a9ea6; --faint:#62666d;
-    --line:#26282c; --soft:#1f2124; --raised:#34363b; --accent:#6ea0ff; --accent-soft:#1b2740;
+    --line:#26282c; --soft:#1f2124; --raised:#34363b; --accent:#6ea0ff; --accent-soft:#1b2740; --live:#ff6b6b; --live-soft:#3a1c1e;
   }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -70,6 +70,12 @@ main{padding:12px 16px calc(env(safe-area-inset-bottom) + 32px)}
 .meta .sep{color:var(--faint)}
 .pill{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--soft);color:var(--muted)}
 .pill.accent{background:var(--accent-soft);color:var(--accent)}
+.pill.live{background:var(--live-soft);color:var(--live);display:inline-flex;align-items:center;gap:5px}
+.pill.live::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;animation:latido 1.4s ease-in-out infinite}
+@keyframes latido{50%{opacity:.25}}
+.card.live{border-color:var(--live);box-shadow:0 0 0 1px var(--live) inset}
+.set.now{background:var(--live-soft);color:var(--live);font-weight:600}
+.ev.live{background:var(--live-soft);color:var(--live)}
 .teams{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}
 .team{display:flex;align-items:center;gap:10px;min-width:0}
 .team .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;color:var(--muted)}
@@ -233,9 +239,23 @@ function escudo(eq, size = 28, nombre) {
   return `<span class="crest" style="--s:${size}px" aria-hidden="true">${esc(iniciales(n))}${img}</span>`;
 }
 
+// Marcadores en directo (id -> datos de /api/vivo)
+let vivo = {};
+
+function conVivo(p) {
+  const v = vivo[p.id];
+  if (!v || p.finalizado) return p;
+  return {
+    ...p,
+    finalizado: v.finalizado,
+    enVivo: !v.finalizado,
+    resultado: { local: v.local, visitante: v.visitante, sets: v.sets, actual: v.finalizado ? null : v.actual },
+  };
+}
+
 function todosPartidos() {
   if (!datos?.grupos) return [];
-  return datos.grupos.flatMap((g) => g.partidos);
+  return datos.grupos.flatMap((g) => g.partidos.map(conVivo));
 }
 function partidosVisibles() {
   return todosPartidos().filter((p) => {
@@ -268,25 +288,26 @@ function equipoHTML(eq, grupo, marcador, gana) {
 function tarjeta(p, { siguiente = false } = {}) {
   const res = p.resultado;
   const extra = [];
-  if (siguiente) extra.push(`<span class="pill accent">Siguiente</span>`);
+  if (p.enVivo) extra.push(`<span class="pill live">En directo</span>`);
+  else if (siguiente) extra.push(`<span class="pill accent">Siguiente</span>`);
   if (p.aplazado) extra.push(`<span class="pill">Aplazado</span>`);
   if (p.cancelado) extra.push(`<span class="pill">Cancelado</span>`);
-  if (!p.finalizado && !p.aplazado && !p.cancelado && p.fecha && new Date(p.fecha) < Date.now() - 3 * 3600e3) extra.push(`<span class="pill">Resultado pendiente</span>`);
+  if (!p.finalizado && !p.enVivo && !p.aplazado && !p.cancelado && p.fecha && new Date(p.fecha) < Date.now() - 3 * 3600e3) extra.push(`<span class="pill">Resultado pendiente</span>`);
   const sinFecha = !p.fecha || aplazadoSinFecha(p);
   const hora = sinFecha ? "Fecha por confirmar" : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
   const fecha = !sinFecha && tab === "resultados" ? fmt(p.fecha, { day: "numeric", month: "short" }) + " · " : "";
-  const sets = res?.sets?.length
-    ? `<div class="sets" aria-label="Parciales">${res.sets.map(([l, v]) =>
-        `<span class="set">${l > v ? `<b>${l}</b>` : l}-${v > l ? `<b>${v}</b>` : v}</span>`).join("")}</div>`
-    : "";
-  return `<article class="card ${siguiente ? "next" : ""}">
+  const chips = (res?.sets || []).map(([l, v]) =>
+    `<span class="set">${l > v ? `<b>${l}</b>` : l}-${v > l ? `<b>${v}</b>` : v}</span>`);
+  if (res?.actual) chips.push(`<span class="set now" aria-label="Set en juego">${res.actual[0]}-${res.actual[1]}</span>`);
+  const sets = chips.length ? `<div class="sets" aria-label="Parciales">${chips.join("")}</div>` : "";
+  return `<article class="card ${p.enVivo ? "live" : siguiente ? "next" : ""}">
     <div class="meta"><span class="time">${fecha}${hora}</span>
       <span class="sep">·</span><span>${p.grupo.startsWith("masc") ? "Masculino" : "Femenino"}</span>
       ${p.jornada ? `<span class="sep">·</span><span>J${esc(p.jornada)}</span>` : ""}
       ${extra.join("")}</div>
     <div class="teams">
-      ${equipoHTML(p.local, p.grupo, res?.local, res && res.local > res.visitante)}
-      ${equipoHTML(p.visitante, p.grupo, res?.visitante, res && res.visitante > res.local)}
+      ${equipoHTML(p.local, p.grupo, res?.local, res && (p.enVivo || res.local > res.visitante))}
+      ${equipoHTML(p.visitante, p.grupo, res?.visitante, res && (p.enVivo || res.visitante > res.local))}
     </div>
     ${sets}
     ${p.pabellon ? `<a class="venue" href="${mapsUrl(p.pabellon)}" target="_blank" rel="noopener">
@@ -369,8 +390,8 @@ function vistaCalendario() {
       const mios = [p.local, p.visitante].filter((e) => seguidoDe(e, p.grupo));
       const crests = mios.map((e) => escudo(e, 18)).join("");
       const apl = aplazadoSinFecha(p);
-      const cls = p.cancelado || apl ? "cancel" : p.finalizado ? "done" : "";
-      const txt = p.finalizado && p.resultado ? `${p.resultado.local}-${p.resultado.visitante}`
+      const cls = p.enVivo ? "live" : p.cancelado || apl ? "cancel" : p.finalizado ? "done" : "";
+      const txt = (p.finalizado || p.enVivo) && p.resultado ? `${p.resultado.local}-${p.resultado.visitante}`
         : apl ? "Apl." : fmt(p.fecha, { hour: "2-digit", minute: "2-digit" });
       const nombres = `${p.local?.nombre || ""} contra ${p.visitante?.nombre || ""}`;
       return `<button class="ev ${cls}" data-det="${p.id}" aria-label="${esc(nombres)}, ${esc(txt)}"><span class="crests">${crests}</span>${txt}</button>`;
@@ -518,9 +539,38 @@ document.addEventListener("click", (e) => {
   $("#install-slot button").onclick = () => { store.set("avisoCerrado", true); $("#install-slot").innerHTML = ""; };
 })();
 
+// Partidos que pueden estar jugándose: desde 15 min antes hasta 3 h después de la hora
+function idsEnJuego() {
+  const ahora = Date.now();
+  if (!datos?.grupos) return [];
+  return datos.grupos.flatMap((g) => g.partidos)
+    .filter((p) => {
+      if (p.finalizado || p.cancelado || !p.fecha || vivo[p.id]?.finalizado) return false;
+      const t = new Date(p.fecha).getTime();
+      const mio = seguidoDe(p.local, p.grupo) || seguidoDe(p.visitante, p.grupo);
+      return mio && ahora >= t - 15 * 60e3 && ahora <= t + 3 * 3600e3;
+    })
+    .map((p) => p.id);
+}
+
+async function refrescarVivo() {
+  const ids = idsEnJuego();
+  if (!ids.length || document.visibilityState !== "visible") return;
+  try {
+    const r = await fetch("/api/vivo?ids=" + [...ids].sort().join(","));
+    if (!r.ok) return;
+    const j = await r.json();
+    Object.assign(vivo, j.partidos || {});
+    pintar();
+  } catch {}
+}
+
 if (datos) pintar();
-cargar();
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") cargar(); });
+cargar().then(refrescarVivo);
+setInterval(refrescarVivo, 25e3);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") cargar().then(refrescarVivo);
+});
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
 </body>
